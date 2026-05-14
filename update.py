@@ -55,6 +55,7 @@ def get_current_unit_rate():
         price = latest['value_inc_vat']
         print(f"Current Unit Rate: {price}p/kWh (inc. VAT)")
         r.set('tariff', f"{price}")
+        r.close()
     else:
         print("No pricing data found.")
         notify("Couldn't update tariff")
