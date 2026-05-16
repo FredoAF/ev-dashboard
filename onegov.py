@@ -37,18 +37,28 @@ else:
     print(f"Failed with status code: {response.status_code}")
     print(response.text)
 
-response = requests.get(base_url+"/api/v1/pfs/fuel-prices?batch-number=2", headers = {"Authorization": f"Bearer {access_token}","Content-Type": "application/json"})
-if response.status_code == 200:
-    # print(json.dumps(response.json(), indent=4))
-    for station in response.json():
-        # print(station['node_id'])
-        if station['node_id'] == station_id:
-            for fuel_price in station['fuel_prices']:
-                if fuel_price['fuel_type'] == "E10":
-                    price = round(float(fuel_price['price'])/100, 3)
-                    print(f"New Price Per Litre at Wolverton Tesco: {price}")
-                    r.set('pricePerLitre', price)
-                    r.close()
-else:
-    print(response.content)
-    notify("Couldn't update fuel")
+batchNo = 1
+batchLimit = 25
+batchFound = False
+while batchNo < batchLimit and not batchFound:
+    response = requests.get(f"{base_url}/api/v1/pfs/fuel-prices?batch-number={batchNo}", headers = {"Authorization": f"Bearer {access_token}","Content-Type": "application/json"})
+    batchNo=batchNo+1
+    if response.status_code == 200:
+        # print(json.dumps(response.json(), indent=4))
+        for station in response.json():
+            # print(station['node_id'])
+            if station['node_id'] == station_id:
+                for fuel_price in station['fuel_prices']:
+                    if fuel_price['fuel_type'] == "E10":
+                        price = round(float(fuel_price['price'])/100, 3)
+                        print(f"Batch {batchNo} - New Price Per Litre at Wolverton Tesco: {price}")
+                        r.set('pricePerLitre', price)
+                        r.close()
+                        batchFound = True
+    else:
+        print(response.content)
+        print("Couldn't update fuel")
+        notify("Couldn't update fuel")
+if batchNo >= batchLimit:
+    print('station not found')
+    notify("Not in batches - Couldn't update fuel")
