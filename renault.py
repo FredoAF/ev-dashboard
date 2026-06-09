@@ -93,9 +93,12 @@ async def main():
         full_range_est = (range_miles / battery_pct * 100) if battery_pct > 0 else 0
         miles_per_kwh = full_range_est / BATTERY_SIZE_KWH
 
-        print(f"Level: {battery_pct}% | Est. Range: {range_miles:.1f} mi")
+        print(f"Level: {battery_pct}% | Est. Range: {range_miles:.1f} mi / {full_range_est} mi")
         print(f"Efficiency: {miles_per_kwh:.2f} mi/kWh")
-        
+        r.xadd("battery_stats", {
+            'battery_pct': battery_pct,
+            'efficiency': miles_per_kwh
+        })
         r.mset({
             '100Range': round(full_range_est, 1),
             'currentRangeMiles': round(range_miles, 1),
