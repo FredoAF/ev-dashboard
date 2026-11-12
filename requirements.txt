@@ -1,0 +1,6 @@
+aiohttp==3.14.5
+python-dotenv==1.2.4
+redis==8.1.0
+renault-api==0.6.3
+requests==2.34.2
+tzdata==2026.6
