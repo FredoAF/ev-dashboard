@@ -91,15 +91,25 @@ def night_fraction(start, end):
         day += timedelta(days=1)
     return overlap / total
 
+def default_last_charge_ms():
+    """Checkpoint to use when 'lastChargeStart' has never been set.
+
+    Charges starting after the newest charge_stats entry haven't been recorded yet.
+    Must not be relative to "now": a charge still running at one run would then fall
+    behind the cutoff by the next run and never be recorded.
+    """
+    newest = r.xrevrange("charge_stats", count=1)
+    if newest:
+        return int(newest[0][0].split("-")[0])
+    return int((datetime.now().timestamp() - 1 * 86400) * 1000)
+
 async def main():
     # Load state from Redis
     price_per_litre = get_redis_float('pricePerLitre', 1.50)
     mpg = get_redis_int('mpg', 40)
     night_rate = get_redis_float('tariffNight', DEFAULT_NIGHT_RATE) / 100  # pence -> pounds
     day_rate = get_redis_float('tariffDay', DEFAULT_DAY_RATE) / 100
-    last_charge_ms = get_redis_int(
-        'lastChargeStart', int((datetime.now().timestamp() - 3 * 3600) * 1000)
-    )
+    last_charge_ms = get_redis_int('lastChargeStart', default_last_charge_ms())
     prev_total_miles = get_redis_int('totalMiles', 0)
     current_average_mile_cost = get_redis_float('averageMileCost', 0.055)
     accum_cost_elec = get_redis_float('accumCostElec', 0.0)
