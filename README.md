@@ -37,25 +37,29 @@ Settings read from Redis (set by hand with `redis-cli SET`):
 |---|---|---|
 | `tariffNight` | 6.66 | off-peak rate, p/kWh (23:00–06:00) |
 | `tariffDay` | 32.52 | peak rate, p/kWh |
-| `mpg` | 40 | petrol car used for comparison (whole number) |
+| `mpg` | 40 | petrol car used for comparison |
+| `ppmWindowDays` | 42 | trailing window (days) for the measured cost per mile |
 
 ## Redis data
 
-Plain keys (latest values): `batteryPercentage`, `currentRangeMiles`, `100Range`, `milesPerKwh`, `totalMiles`, `averageMileCost`, `accumCostElec`, `accumCostPetrol`, `pricePerLitre`, `lastChargeStart` (dedupe checkpoint, epoch ms).
+Plain keys (latest values): `batteryPercentage`, `currentRangeMiles`, `100Range`, `milesPerKwh` (what the car predicts), `measuredMilesPerKwh` (what it actually did), `totalMiles`, `averageMileCost`, `accumCostElec`, `accumCostPetrol`, `pricePerLitre`, `lastChargeStart` (dedupe checkpoint, epoch ms).
 
 Streams (time series for Grafana):
 
 | Stream | Written | Fields |
 |---|---|---|
 | `battery_stats` | every run | `battery_pct`, `efficiency` |
-| `charge_stats` | once per charge, timestamped at charge start | `miles_added`, `cost`, `efficiency`, `hours`, `kWh_added`, `kWh_bought`, `%_added`, `offpeak_pct`, `rate_p` |
-| `mile_stats` | every run | `mile_delta`, `ppm`, `miles/kwh` |
+| `charge_stats` | once per charge, timestamped at charge start | `miles_added`, `cost`, `efficiency`, `hours`, `kWh_added`, `kWh_bought`, `%_added`, `offpeak_pct`, `rate_p`, `home` |
+| `mile_stats` | every run | `mile_delta`, `ppm`, `miles/kwh` (predicted), `measured_miles/kwh` (when enough data) |
 
 ## How costs are worked out
 
-- **Efficiency** (mi/kWh) is the car's 100%-range estimate divided by 52 kWh.
-- **Charge cost** is duration × 7.45 kW (Hypervolt) × rate, with the rate blended by how much of the charge fell in the off-peak window.
-- **Electric total** adds miles driven × average cost per mile; **petrol total** adds miles driven × (price per litre × 4.546 ÷ mpg). Savings = petrol − electric.
+- **Predicted efficiency** (mi/kWh) is the car's 100%-range estimate divided by 52 kWh. The car never shows this directly, only predicted range, so it's backed out from range ÷ battery %. It moves with driving style and season, which is why it's tracked, but it's a prediction so no money is based on it.
+- **Charge cost** is duration × 7.45 kW (Hypervolt) × rate, with the rate blended by how much of the charge fell in the off-peak window. Each charge's cost is added to the electric total as it happens.
+- **Public charges** (energy added faster than the Hypervolt can deliver) have a known energy but unknown price, so they're recorded with `home=0` and cost 0, and an alert is sent. Add the real cost by hand: `redis-cli INCRBYFLOAT accumCostElec <pounds>`.
+- **Petrol total** adds miles driven (odometer delta each run) × (price per litre × 4.546 ÷ mpg). Savings = petrol − electric.
+- **Measured cost per mile** (`averageMileCost`) is home charge cost over the last `ppmWindowDays` divided by miles driven in the same window, corrected for the battery holding a different amount at the start and end of the window. `measuredMilesPerKwh` comes from the same sums. Both need at least 100 miles in the window, otherwise the previous value is kept.
+- An odometer that goes backwards is ignored. A missing odometer baseline (first run, or Redis lost its data) records the current reading and costs nothing, rather than counting the car's whole mileage as driven.
 
 ## Build and release
 
