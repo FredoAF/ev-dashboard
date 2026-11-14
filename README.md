@@ -61,6 +61,10 @@ Streams (time series for Grafana):
 - **Measured cost per mile** (`averageMileCost`) is home charge cost over the last `ppmWindowDays` divided by miles driven in the same window, corrected for the battery holding a different amount at the start and end of the window. `measuredMilesPerKwh` comes from the same sums. Both need at least 100 miles in the window, otherwise the previous value is kept.
 - An odometer that goes backwards is ignored. A missing odometer baseline (first run, or Redis lost its data) records the current reading and costs nothing, rather than counting the car's whole mileage as driven.
 
+## Grafana
+
+`grafana/renault5-dashboard.json` is the dashboard (Grafana v2 schema, Redis datasource). Import it via Dashboards → New → Import, or `PUT` it to the dashboard API to overwrite the existing one; it keeps the same UID. The cost-per-mile comparison needs `mpg` set in Redis.
+
 ## Build and release
 
 - Push to `main` → image tagged `edge` and `sha-…`

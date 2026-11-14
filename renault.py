@@ -121,9 +121,19 @@ def measured_cost_per_mile(window_days, extra_miles=0):
     `extra_miles` is this run's mileage delta, not yet in the mile_stats stream.
     """
     since = f"{int((datetime.now().timestamp() - window_days * 86400) * 1000)}-0"
-    charges = [f for _, f in r.xrange("charge_stats", min=since) if f.get('home', '1') == '1']
+    charges, seen = [], set()
+    for _, f in r.xrange("charge_stats", min=since):
+        if f.get('home', '1') != '1':
+            continue
+        # Until Nov 2026 the dedupe checkpoint didn't work and every run re-recorded the
+        # same charges, so identical entries are counted once.
+        key = (f.get('cost'), f.get('kWh_added'), f.get('hours'), f.get('%_added'))
+        if key in seen:
+            continue
+        seen.add(key)
+        charges.append(f)
     cost = sum(float(f['cost']) for f in charges)
-    kwh_added = sum(float(f['kWh_added']) for f in charges)
+    kwh_added = sum(float(f.get('kWh_added', 0)) for f in charges)
     miles = sum(int(float(f['mile_delta'])) for _, f in r.xrange("mile_stats", min=since)) + extra_miles
     battery = r.xrange("battery_stats", min=since)
     if miles < MIN_WINDOW_MILES or kwh_added <= 0 or not battery:
